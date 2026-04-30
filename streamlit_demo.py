@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import html
 from pathlib import Path
+import zipfile
 
 import numpy as np
 import pandas as pd
@@ -10,7 +11,9 @@ import streamlit as st
 
 
 APP_DIR = Path(__file__).resolve().parent
-METADATA_PATH = APP_DIR / "embedding_metadata_minilm.csv"
+METADATA_CSV_PATH = APP_DIR / "embedding_metadata_minilm.csv"
+METADATA_ZIP_PATH = APP_DIR / "embedding_metadata_minilm.zip"
+METADATA_FILENAME = "embedding_metadata_minilm.csv"
 EMBEDDING_PATHS = {
     "Config A: content only": APP_DIR / "embeddings_config_a_minilm.npy",
     "Config B: title + category + tags + content": APP_DIR / "embeddings_config_b_minilm.npy",
@@ -76,11 +79,31 @@ def load_encoder():
 
 
 @st.cache_data(show_spinner=False)
-def load_metadata(path: Path) -> pd.DataFrame:
-    df = pd.read_csv(path)
+def load_metadata(csv_path: Path, zip_path: Path) -> tuple[pd.DataFrame, str]:
+    if csv_path.exists():
+        df = pd.read_csv(csv_path)
+        source = csv_path.name
+    elif zip_path.exists():
+        with zipfile.ZipFile(zip_path) as archive:
+            with archive.open(METADATA_FILENAME) as metadata_file:
+                df = pd.read_csv(metadata_file)
+        source = zip_path.name
+    else:
+        raise FileNotFoundError(METADATA_FILENAME)
+
+    for column, default in {
+        "difficulty": "unknown",
+        "likes": 0,
+        "upvotes": 0,
+    }.items():
+        if column not in df.columns:
+            df[column] = default
+
+    df["likes"] = pd.to_numeric(df["likes"], errors="coerce").fillna(0).astype(int)
+    df["upvotes"] = pd.to_numeric(df["upvotes"], errors="coerce").fillna(0).astype(int)
     df["tags_list"] = df["tags"].apply(parse_tags)
     df["content_preview"] = df["content"].fillna("").str.replace(r"\s+", " ", regex=True)
-    return df
+    return df, source
 
 
 @st.cache_data(show_spinner=False)
@@ -127,11 +150,35 @@ def search(query: str, embeddings: np.ndarray, top_k: int) -> tuple[np.ndarray, 
     return ranked_indices, scores[ranked_indices]
 
 
+def rerank_with_popularity(
+    rows: pd.DataFrame,
+    indices: np.ndarray,
+    scores: np.ndarray,
+    top_k: int,
+    popularity_weight: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    if popularity_weight <= 0:
+        return indices[:top_k], scores[:top_k], scores[:top_k]
+
+    engagement = (
+        rows.iloc[indices]["likes"].to_numpy(dtype=np.float32)
+        + rows.iloc[indices]["upvotes"].to_numpy(dtype=np.float32)
+    )
+    engagement = np.log1p(engagement)
+    max_engagement = float(engagement.max()) if len(engagement) else 0.0
+    if max_engagement > 0:
+        engagement = engagement / max_engagement
+
+    final_scores = ((1.0 - popularity_weight) * scores) + (popularity_weight * engagement)
+    order = np.argsort(final_scores)[::-1][:top_k]
+    return indices[order], scores[order], final_scores[order]
+
+
 def render_tags(tags: list[str]) -> str:
     return "".join(f'<span class="tag">{html.escape(tag)}</span>' for tag in tags[:6])
 
 
-def render_result(row: pd.Series, score: float, rank: int) -> None:
+def render_result(row: pd.Series, score: float, final_score: float, rank: int) -> None:
     content = row["content_preview"]
     if len(content) > 560:
         content = content[:560].rstrip() + "..."
@@ -139,14 +186,19 @@ def render_result(row: pd.Series, score: float, rank: int) -> None:
     prompt_id = html.escape(str(row["id"]))
     category = html.escape(str(row["category"]))
     subcategory = html.escape(str(row["subcategory"]))
+    difficulty = html.escape(str(row["difficulty"]))
     content = html.escape(content)
+    score_label = f"semantic {score:.3f}"
+    if abs(final_score - score) > 0.0005:
+        score_label += f" / final {final_score:.3f}"
 
     st.markdown(
         f"""
         <div class="result">
             <div class="result-title">{rank}. {title}</div>
             <div class="result-meta">
-                {prompt_id} - {category} / {subcategory} - score {score:.3f}
+                {prompt_id} - {category} / {subcategory} - {difficulty} - {score_label}
+                - likes {int(row['likes'])} - upvotes {int(row['upvotes'])}
             </div>
             <div>{content}</div>
             <div style="margin-top:0.7rem;">{render_tags(row['tags_list'])}</div>
@@ -157,7 +209,9 @@ def render_result(row: pd.Series, score: float, rank: int) -> None:
 
 
 def validate_files() -> None:
-    missing = [str(METADATA_PATH.name)] if not METADATA_PATH.exists() else []
+    missing = []
+    if not METADATA_CSV_PATH.exists() and not METADATA_ZIP_PATH.exists():
+        missing.append(f"{METADATA_CSV_PATH.name} or {METADATA_ZIP_PATH.name}")
     missing.extend(str(path.name) for path in EMBEDDING_PATHS.values() if not path.exists())
     if missing:
         st.error("Missing required files: " + ", ".join(missing))
@@ -173,22 +227,39 @@ def main() -> None:
         st.subheader("Search Setup")
         config_label = st.radio("Embedding input", list(EMBEDDING_PATHS), index=1)
         top_k = st.slider("Results", min_value=3, max_value=15, value=5, step=1)
+        popularity_weight = st.slider(
+            "Popularity boost",
+            min_value=0.0,
+            max_value=0.5,
+            value=0.0,
+            step=0.05,
+        )
         category_filter_enabled = st.checkbox("Filter by category", value=False)
+        difficulty_filter_enabled = st.checkbox("Filter by difficulty", value=False)
 
     with st.spinner("Loading metadata and embeddings..."):
-        metadata = load_metadata(METADATA_PATH)
+        metadata, metadata_source = load_metadata(METADATA_CSV_PATH, METADATA_ZIP_PATH)
         embeddings = load_embeddings(EMBEDDING_PATHS[config_label])
 
     categories = sorted(metadata["category"].dropna().unique().tolist())
+    difficulties = sorted(metadata["difficulty"].dropna().unique().tolist())
     selected_category = None
     if category_filter_enabled:
         with st.sidebar:
             selected_category = st.selectbox("Category", categories)
+    selected_difficulties = difficulties
+    if difficulty_filter_enabled:
+        with st.sidebar:
+            selected_difficulties = st.multiselect(
+                "Difficulty",
+                difficulties,
+                default=difficulties,
+            )
 
     col_a, col_b, col_c = st.columns(3)
     col_a.metric("Prompts", f"{len(metadata):,}")
     col_b.metric("Vector size", f"{embeddings.shape[1]}")
-    col_c.metric("Model", "MiniLM-L6-v2")
+    col_c.metric("Metadata", metadata_source)
 
     examples = [
         "write a cold outreach email for a SaaS product",
@@ -216,20 +287,48 @@ def main() -> None:
         return
 
     with st.spinner("Searching..."):
+        mask = np.ones(len(metadata), dtype=bool)
         if selected_category:
-            mask = metadata["category"].eq(selected_category).to_numpy()
+            mask &= metadata["category"].eq(selected_category).to_numpy()
+        if difficulty_filter_enabled:
+            mask &= metadata["difficulty"].isin(selected_difficulties).to_numpy()
+
+        if not mask.any():
+            st.warning("No prompts match the selected filters.")
+            return
+
+        retrieval_count = min(max(top_k * 5, top_k), int(mask.sum()))
+
+        if mask.all():
+            candidate_indices, semantic_scores = search(query, embeddings, retrieval_count)
+            result_indices, semantic_scores, final_scores = rerank_with_popularity(
+                metadata,
+                candidate_indices,
+                semantic_scores,
+                top_k,
+                popularity_weight,
+            )
+        else:
             filtered_indices = np.flatnonzero(mask)
             filtered_embeddings = embeddings[filtered_indices]
-            local_indices, scores = search(query, filtered_embeddings, top_k)
-            result_indices = filtered_indices[local_indices]
-        else:
-            result_indices, scores = search(query, embeddings, top_k)
+            local_indices, semantic_scores = search(query, filtered_embeddings, retrieval_count)
+            candidate_indices = filtered_indices[local_indices]
+            result_indices, semantic_scores, final_scores = rerank_with_popularity(
+                metadata,
+                candidate_indices,
+                semantic_scores,
+                top_k,
+                popularity_weight,
+            )
 
     st.subheader("Results")
     st.caption(config_label)
 
-    for rank, (idx, score) in enumerate(zip(result_indices, scores), start=1):
-        render_result(metadata.iloc[int(idx)], float(score), rank)
+    for rank, (idx, semantic_score, final_score) in enumerate(
+        zip(result_indices, semantic_scores, final_scores),
+        start=1,
+    ):
+        render_result(metadata.iloc[int(idx)], float(semantic_score), float(final_score), rank)
 
 
 if __name__ == "__main__":
