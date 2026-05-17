@@ -28,8 +28,33 @@ pip install -r requirements.txt
 ```
 The project also uses the following Python Standard Library modules:
 
--json
+-`json`
 
--re
+-`re`
 
--collections
+-`collections`
+
+## Input Data
+
+The initial input file is:
+
+```text
+LEAF-promptkaban-dataset/dataset.json
+```
+
+## Data Flow
+
+The project starts using the raw dataset stored in `LEAF-promptkaban-dataset/dataset.json`.
+
+During the execution of the pipeline, some scripts generate intermediate files that are used as input by later scripts.
+Therefore, it is important to execute files in the specified order to correctly reproduce the right workflow.
+
+
+
+
+
+## Execution Order
+
+Run the scripts in the following order:
+
+1.`eda_leaf.py`
