@@ -78,20 +78,7 @@ The project starts using the raw dataset stored in `dataset.json`.
 During the execution of the pipeline, some scripts generate intermediate files that are used as input by later scripts.
 Therefore, it is important to execute files in the specified order to correctly reproduce the right workflow.
 
-## Execution Order
-
-Run the scripts in the following order.
-
-| Step | Script | Main input | Main output | Purpose |
-|---|---|---|---|---|
-| 1 | `eda_leaf.py` | `dataset.json` | Descriptive statistics and EDA results | Explores the dataset structure, completeness, textual fields, tags, placeholders, and metadata. The results are used to guide preprocessing and embedding design. |
-| 2 | `preprocessing.py` | `dataset.json` | `embeddings_bge_enriched.npy`<br>`embeddings_e5_enriched.npy`<br>`retrieval_metadata_enriched.csv` | Builds the enriched textual representation, generates BGE and E5 embeddings, and saves the metadata used for ChromaDB insertion and reranking. |
-| 3 | `embedding.py` | `embeddings_bge_enriched.npy`<br>`embeddings_e5_enriched.npy`<br>`retrieval_metadata_enriched.csv` | `config_a_bge_collection`<br>`config_b_e5_collection` | Creates the local ChromaDB collections by storing each embedding vector together with its corresponding metadata. |
-| 4 | `retrieval.py` | `retrieval_metadata_enriched.csv`<br>`embeddings_bge_enriched.npy`<br>`embeddings_e5_enriched.npy`<br>`config_a_bge_collection`<br>`config_b_e5_collection` | `candidates_for_reranker.json` | Runs semantic retrieval using Config A and Config B, returning the top candidates to be passed to the reranking stage. |
-| 5 | `reranker.py` | `candidates_for_reranker.json`<br>`retrieval_metadata_enriched.csv` | `reranked_output_config_A.json`<br>`reranked_output_config_B.json` | Applies the cross-encoder reranker to reorder the retrieved candidates based mainly on semantic relevance. |
-| 6 | `reranker_metadata_enriched.py` | `candidates_for_reranker.json`<br>`retrieval_metadata_enriched.csv` | `reranked_metadata_enriched_config_A.json`<br>`reranked_metadata_enriched_config_B.json` | Applies the metadata-aware reranking strategy, combining semantic relevance with additional metadata-based signals. |
-
-## Execution Order
+### Execution Order
 
 Run the scripts in the following order:
 
@@ -106,3 +93,14 @@ Run the scripts in the following order:
 5.`reranker.py`
 
 6.`reranker_metadata_enriched.py`
+
+| Step | Script | Main input | Main output |
+|---|---|---|---|
+| 1 | `eda_leaf.py` | `dataset.json` | Descriptive statistics and EDA results |
+| 2 | `preprocessing.py` | `dataset.json` | `embeddings_bge_enriched.npy`<br>`embeddings_e5_enriched.npy`<br>`retrieval_metadata_enriched.csv` |
+| 3 | `embedding.py` | `embeddings_bge_enriched.npy`<br>`embeddings_e5_enriched.npy`<br>`retrieval_metadata_enriched.csv` | `config_a_bge_collection`<br>`config_b_e5_collection` |
+| 4 | `retrieval.py` | `retrieval_metadata_enriched.csv`<br>`embeddings_bge_enriched.npy`<br>`embeddings_e5_enriched.npy`<br>`config_a_bge_collection`<br>`config_b_e5_collection` | `candidates_for_reranker.json` |
+| 5 | `reranker.py` | `candidates_for_reranker.json`<br>`retrieval_metadata_enriched.csv` | `reranked_output_config_A.json`<br>`reranked_output_config_B.json` |
+| 6 | `reranker_metadata_enriched.py` | `candidates_for_reranker.json`<br>`retrieval_metadata_enriched.csv` | `reranked_metadata_enriched_config_A.json`<br>`reranked_metadata_enriched_config_B.json` |
+
+Each script should be executed only after the previous one has successfully completed, because some scripts use intermediate files generated in earlier stages.
