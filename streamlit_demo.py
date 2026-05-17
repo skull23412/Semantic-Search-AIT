@@ -3,26 +3,37 @@ from __future__ import annotations
 import ast
 import html
 from pathlib import Path
-import zipfile
 
 import numpy as np
 import pandas as pd
 import streamlit as st
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 
 APP_DIR = Path(__file__).resolve().parent
-METADATA_CSV_PATH = APP_DIR / "embedding_metadata_minilm.csv"
-METADATA_ZIP_PATH = APP_DIR / "embedding_metadata_minilm.zip"
-METADATA_FILENAME = "embedding_metadata_minilm.csv"
-EMBEDDING_PATHS = {
-    "Config A: content only": APP_DIR / "embeddings_config_a_minilm.npy",
-    "Config B: title + category + tags + content": APP_DIR / "embeddings_config_b_minilm.npy",
+METADATA_PATH = APP_DIR / "retrieval_metadata_enriched.csv"
+EMBEDDING_CONFIGS = {
+    "Config A - BGE enriched": {
+        "path": APP_DIR / "embeddings_bge_enriched.npy",
+        "model": "BAAI/bge-base-en-v1.5",
+        "query_prefix": "",
+        "passage_prefix": "",
+        "note": "Step 3 vector search with enriched prompt metadata embedded by BGE.",
+    },
+    "Config B - E5 enriched": {
+        "path": APP_DIR / "embeddings_e5_enriched.npy",
+        "model": "intfloat/e5-base-v2",
+        "query_prefix": "query: ",
+        "passage_prefix": "passage: ",
+        "note": "Step 3 vector search with enriched prompt metadata embedded by E5.",
+    },
 }
-MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+RERANKER_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
 
 st.set_page_config(
-    page_title="LEAF Semantic Search Demo",
+    page_title="LEAF Retrieval Demo",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -32,19 +43,19 @@ st.markdown(
     """
     <style>
     .block-container {
-        padding-top: 1.5rem;
+        padding-top: 1.25rem;
         padding-bottom: 2rem;
-        max-width: 1180px;
+        max-width: 1220px;
     }
     div[data-testid="stMetricValue"] {
-        font-size: 1.35rem;
+        font-size: 1.28rem;
     }
     .result {
         border: 1px solid rgba(49, 51, 63, 0.16);
         border-radius: 8px;
         padding: 1rem;
         margin: 0.75rem 0;
-        background: rgba(250, 250, 250, 0.7);
+        background: rgba(250, 250, 250, 0.76);
     }
     .result-title {
         font-weight: 700;
@@ -55,6 +66,12 @@ st.markdown(
         color: rgba(49, 51, 63, 0.72);
         font-size: 0.88rem;
         margin-bottom: 0.6rem;
+        line-height: 1.45;
+    }
+    .score-line {
+        color: rgba(49, 51, 63, 0.84);
+        font-size: 0.84rem;
+        margin-top: 0.55rem;
     }
     .tag {
         display: inline-block;
@@ -72,27 +89,31 @@ st.markdown(
 
 
 @st.cache_resource(show_spinner=False)
-def load_encoder():
+def load_encoder(model_name: str):
     from sentence_transformers import SentenceTransformer
 
-    return SentenceTransformer(MODEL_NAME)
+    return SentenceTransformer(model_name)
+
+
+@st.cache_resource(show_spinner=False)
+def load_cross_encoder():
+    from sentence_transformers import CrossEncoder
+
+    return CrossEncoder(RERANKER_MODEL_NAME)
 
 
 @st.cache_data(show_spinner=False)
-def load_metadata(csv_path: Path, zip_path: Path) -> tuple[pd.DataFrame, str]:
-    if csv_path.exists():
-        df = pd.read_csv(csv_path)
-        source = csv_path.name
-    elif zip_path.exists():
-        with zipfile.ZipFile(zip_path) as archive:
-            with archive.open(METADATA_FILENAME) as metadata_file:
-                df = pd.read_csv(metadata_file)
-        source = zip_path.name
-    else:
-        raise FileNotFoundError(METADATA_FILENAME)
-
+def load_metadata(path: Path) -> pd.DataFrame:
+    df = pd.read_csv(path)
     for column, default in {
+        "title": "",
+        "content": "",
+        "category": "",
+        "subcategory": "",
+        "tags": "[]",
         "difficulty": "unknown",
+        "language": "",
+        "target_model": "",
         "likes": 0,
         "upvotes": 0,
     }.items():
@@ -103,7 +124,7 @@ def load_metadata(csv_path: Path, zip_path: Path) -> tuple[pd.DataFrame, str]:
     df["upvotes"] = pd.to_numeric(df["upvotes"], errors="coerce").fillna(0).astype(int)
     df["tags_list"] = df["tags"].apply(parse_tags)
     df["content_preview"] = df["content"].fillna("").str.replace(r"\s+", " ", regex=True)
-    return df, source
+    return df
 
 
 @st.cache_data(show_spinner=False)
@@ -125,6 +146,17 @@ def normalize_vector(vector: np.ndarray) -> np.ndarray:
     return vector / norm
 
 
+def minmax_normalize(values: np.ndarray) -> np.ndarray:
+    values = np.asarray(values, dtype=np.float32)
+    if len(values) == 0:
+        return values
+    min_val = float(values.min())
+    max_val = float(values.max())
+    if max_val == min_val:
+        return np.zeros_like(values, dtype=np.float32)
+    return (values - min_val) / (max_val - min_val)
+
+
 def parse_tags(value: object) -> list[str]:
     if isinstance(value, list):
         return [str(tag) for tag in value]
@@ -139,69 +171,200 @@ def parse_tags(value: object) -> list[str]:
     return [str(tag) for tag in parsed]
 
 
-def search(query: str, embeddings: np.ndarray, top_k: int) -> tuple[np.ndarray, np.ndarray]:
-    model = load_encoder()
-    query_embedding = model.encode([query], convert_to_numpy=True)[0].astype(np.float32)
+def build_metadata_text(row: pd.Series) -> str:
+    return " ".join(
+        [
+            str(row.get("title", "")),
+            str(row.get("category", "")),
+            str(row.get("subcategory", "")),
+            str(row.get("tags", "")),
+            str(row.get("difficulty", "")),
+        ]
+    )
+
+
+def vector_search(
+    query: str,
+    embeddings: np.ndarray,
+    encoder,
+    query_prefix: str,
+    candidate_k: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    query_embedding = encoder.encode(
+        [query_prefix + query],
+        convert_to_numpy=True,
+    )[0].astype(np.float32)
     query_embedding = normalize_vector(query_embedding)
     scores = embeddings @ query_embedding
-    candidate_count = min(top_k, len(scores))
+    candidate_count = min(candidate_k, len(scores))
     top_indices = np.argpartition(scores, -candidate_count)[-candidate_count:]
     ranked_indices = top_indices[np.argsort(scores[top_indices])[::-1]]
     return ranked_indices, scores[ranked_indices]
 
 
-def rerank_with_popularity(
-    rows: pd.DataFrame,
-    indices: np.ndarray,
-    scores: np.ndarray,
-    top_k: int,
-    popularity_weight: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    if popularity_weight <= 0:
-        return indices[:top_k], scores[:top_k], scores[:top_k]
+def rerank_candidates(query: str, candidates: list[dict], top_k: int) -> list[dict]:
+    cross_encoder = load_cross_encoder()
+    pairs = [[query.strip(), str(candidate["content"])] for candidate in candidates]
+    scores = cross_encoder.predict(pairs)
 
-    engagement = (
-        rows.iloc[indices]["likes"].to_numpy(dtype=np.float32)
-        + rows.iloc[indices]["upvotes"].to_numpy(dtype=np.float32)
+    reranked = []
+    for candidate, score in zip(candidates, scores):
+        item = dict(candidate)
+        item["rerank_score"] = float(score)
+        reranked.append(item)
+
+    return sorted(reranked, key=lambda item: item["rerank_score"], reverse=True)[:top_k]
+
+
+def metadata_semantic_scores(
+    query: str,
+    candidates: list[dict],
+    encoder,
+    query_prefix: str,
+    passage_prefix: str,
+) -> np.ndarray:
+    metadata_texts = [passage_prefix + candidate["metadata_text"] for candidate in candidates]
+    query_vec = encoder.encode(
+        [query_prefix + query],
+        convert_to_numpy=True,
+        normalize_embeddings=True,
     )
-    engagement = np.log1p(engagement)
-    max_engagement = float(engagement.max()) if len(engagement) else 0.0
-    if max_engagement > 0:
-        engagement = engagement / max_engagement
+    metadata_vecs = encoder.encode(
+        metadata_texts,
+        convert_to_numpy=True,
+        normalize_embeddings=True,
+    )
+    return cosine_similarity(query_vec, metadata_vecs).flatten()
 
-    final_scores = ((1.0 - popularity_weight) * scores) + (popularity_weight * engagement)
-    order = np.argsort(final_scores)[::-1][:top_k]
-    return indices[order], scores[order], final_scores[order]
+
+def tfidf_keyword_scores(
+    query: str,
+    candidates: list[dict],
+    metadata_weight: float,
+    content_weight: float,
+) -> np.ndarray:
+    metadata_texts = [candidate["metadata_text"] for candidate in candidates]
+    content_texts = [str(candidate["content"]) for candidate in candidates]
+    vectorizer = TfidfVectorizer(lowercase=True, ngram_range=(1, 2))
+
+    metadata_tfidf = vectorizer.fit_transform([query] + metadata_texts)
+    metadata_scores = cosine_similarity(metadata_tfidf[0:1], metadata_tfidf[1:]).flatten()
+
+    content_tfidf = vectorizer.fit_transform([query] + content_texts)
+    content_scores = cosine_similarity(content_tfidf[0:1], content_tfidf[1:]).flatten()
+
+    return (metadata_weight * metadata_scores) + (content_weight * content_scores)
+
+
+def metadata_aware_rerank(
+    query: str,
+    candidates: list[dict],
+    encoder,
+    top_k: int,
+    alpha: float,
+    beta: float,
+    gamma: float,
+    metadata_keyword_weight: float,
+    content_keyword_weight: float,
+    query_prefix: str,
+    passage_prefix: str,
+) -> list[dict]:
+    reranked = rerank_candidates(query, candidates, top_k=len(candidates))
+    reranker_scores = np.array([item["rerank_score"] for item in reranked], dtype=np.float32)
+    metadata_scores = metadata_semantic_scores(query, reranked, encoder, query_prefix, passage_prefix)
+    keyword_scores = tfidf_keyword_scores(
+        query,
+        reranked,
+        metadata_weight=metadata_keyword_weight,
+        content_weight=content_keyword_weight,
+    )
+
+    reranker_norm = minmax_normalize(reranker_scores)
+    metadata_norm = minmax_normalize(metadata_scores)
+    keyword_norm = minmax_normalize(keyword_scores)
+    final_scores = (alpha * reranker_norm) + (beta * metadata_norm) + (gamma * keyword_norm)
+
+    for index, item in enumerate(reranked):
+        item["rerank_score_norm"] = float(reranker_norm[index])
+        item["metadata_score_norm"] = float(metadata_norm[index])
+        item["keyword_score_norm"] = float(keyword_norm[index])
+        item["final_score"] = float(final_scores[index])
+
+    return sorted(reranked, key=lambda item: item["final_score"], reverse=True)[:top_k]
+
+
+def rows_to_candidates(rows: pd.DataFrame, indices: np.ndarray, scores: np.ndarray) -> list[dict]:
+    candidates = []
+    for rank, (idx, score) in enumerate(zip(indices, scores), start=1):
+        row = rows.iloc[int(idx)]
+        candidates.append(
+            {
+                "index": int(idx),
+                "rank": rank,
+                "id": str(row["id"]),
+                "title": str(row["title"]),
+                "content": str(row["content"]),
+                "category": str(row["category"]),
+                "subcategory": str(row["subcategory"]),
+                "tags": str(row["tags"]),
+                "tags_list": row["tags_list"],
+                "difficulty": str(row["difficulty"]),
+                "language": str(row.get("language", "")),
+                "target_model": str(row.get("target_model", "")),
+                "likes": int(row["likes"]),
+                "upvotes": int(row["upvotes"]),
+                "vector_score": float(score),
+                "metadata_text": build_metadata_text(row),
+            }
+        )
+    return candidates
+
+
+def apply_filters(metadata: pd.DataFrame, category: str | None, difficulties: list[str]) -> np.ndarray:
+    mask = np.ones(len(metadata), dtype=bool)
+    if category:
+        mask &= metadata["category"].eq(category).to_numpy()
+    if difficulties:
+        mask &= metadata["difficulty"].isin(difficulties).to_numpy()
+    return mask
 
 
 def render_tags(tags: list[str]) -> str:
     return "".join(f'<span class="tag">{html.escape(tag)}</span>' for tag in tags[:6])
 
 
-def render_result(row: pd.Series, score: float, final_score: float, rank: int) -> None:
-    content = row["content_preview"]
-    if len(content) > 560:
-        content = content[:560].rstrip() + "..."
-    title = html.escape(str(row["title"]))
-    prompt_id = html.escape(str(row["id"]))
-    category = html.escape(str(row["category"]))
-    subcategory = html.escape(str(row["subcategory"]))
-    difficulty = html.escape(str(row["difficulty"]))
+def render_result(candidate: dict, rank: int, mode: str) -> None:
+    content = str(candidate["content"]).replace("\n", " ")
+    if len(content) > 620:
+        content = content[:620].rstrip() + "..."
+
+    title = html.escape(str(candidate["title"]))
+    prompt_id = html.escape(str(candidate["id"]))
+    category = html.escape(str(candidate["category"]))
+    subcategory = html.escape(str(candidate["subcategory"]))
+    difficulty = html.escape(str(candidate["difficulty"]))
+    language = html.escape(str(candidate.get("language", "")))
+    target_model = html.escape(str(candidate.get("target_model", "")))
     content = html.escape(content)
-    score_label = f"semantic {score:.3f}"
-    if abs(final_score - score) > 0.0005:
-        score_label += f" / final {final_score:.3f}"
+
+    score_parts = [f"vector {candidate['vector_score']:.3f}"]
+    if "rerank_score" in candidate:
+        score_parts.append(f"reranker {candidate['rerank_score']:.3f}")
+    if "final_score" in candidate:
+        score_parts.append(f"final {candidate['final_score']:.3f}")
 
     st.markdown(
         f"""
         <div class="result">
             <div class="result-title">{rank}. {title}</div>
             <div class="result-meta">
-                {prompt_id} - {category} / {subcategory} - {difficulty} - {score_label}
-                - likes {int(row['likes'])} - upvotes {int(row['upvotes'])}
+                {prompt_id} - {category} / {subcategory} - {difficulty}
+                - lang {language} - target {target_model}
+                - likes {candidate['likes']} - upvotes {candidate['upvotes']}
             </div>
             <div>{content}</div>
-            <div style="margin-top:0.7rem;">{render_tags(row['tags_list'])}</div>
+            <div style="margin-top:0.7rem;">{render_tags(candidate['tags_list'])}</div>
+            <div class="score-line">{html.escape(mode)} - {" | ".join(score_parts)}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -210,9 +373,13 @@ def render_result(row: pd.Series, score: float, final_score: float, rank: int) -
 
 def validate_files() -> None:
     missing = []
-    if not METADATA_CSV_PATH.exists() and not METADATA_ZIP_PATH.exists():
-        missing.append(f"{METADATA_CSV_PATH.name} or {METADATA_ZIP_PATH.name}")
-    missing.extend(str(path.name) for path in EMBEDDING_PATHS.values() if not path.exists())
+    if not METADATA_PATH.exists():
+        missing.append(METADATA_PATH.name)
+    missing.extend(
+        config["path"].name
+        for config in EMBEDDING_CONFIGS.values()
+        if not config["path"].exists()
+    )
     if missing:
         st.error("Missing required files: " + ", ".join(missing))
         st.stop()
@@ -221,25 +388,47 @@ def validate_files() -> None:
 def main() -> None:
     validate_files()
 
-    st.title("LEAF Semantic Search Demo")
+    st.title("LEAF Prompt Retrieval Demo")
 
     with st.sidebar:
-        st.subheader("Search Setup")
-        config_label = st.radio("Embedding input", list(EMBEDDING_PATHS), index=1)
-        top_k = st.slider("Results", min_value=3, max_value=15, value=5, step=1)
-        popularity_weight = st.slider(
-            "Popularity boost",
-            min_value=0.0,
-            max_value=0.5,
-            value=0.0,
-            step=0.05,
+        st.subheader("Pipeline")
+        config_label = st.radio("Step 3 embedding config", list(EMBEDDING_CONFIGS), index=0)
+        ranking_mode = st.radio(
+            "Step 4 ranking",
+            [
+                "Vector search only",
+                "Cross-encoder reranker",
+                "Metadata-aware reranker",
+            ],
+            index=2,
         )
+        top_k = st.slider("Results shown", min_value=3, max_value=15, value=5, step=1)
+        candidate_k = st.slider("Candidates retrieved", min_value=10, max_value=60, value=30, step=5)
+
+        st.subheader("Metadata-aware weights")
+        alpha = st.slider("Reranker weight", 0.0, 1.0, 0.75, 0.05)
+        beta = st.slider("Metadata semantic weight", 0.0, 1.0, 0.15, 0.05)
+        gamma = st.slider("Keyword weight", 0.0, 1.0, 0.10, 0.05)
+        weight_sum = alpha + beta + gamma
+        if weight_sum == 0:
+            alpha, beta, gamma = 1.0, 0.0, 0.0
+        elif abs(weight_sum - 1.0) > 0.001:
+            alpha, beta, gamma = alpha / weight_sum, beta / weight_sum, gamma / weight_sum
+            st.caption(f"Normalized weights: {alpha:.2f}, {beta:.2f}, {gamma:.2f}")
+
+        metadata_keyword_weight = st.slider("Keyword metadata share", 0.0, 1.0, 0.50, 0.05)
+        content_keyword_weight = 1.0 - metadata_keyword_weight
+
+        st.subheader("Filters")
         category_filter_enabled = st.checkbox("Filter by category", value=False)
         difficulty_filter_enabled = st.checkbox("Filter by difficulty", value=False)
 
-    with st.spinner("Loading metadata and embeddings..."):
-        metadata, metadata_source = load_metadata(METADATA_CSV_PATH, METADATA_ZIP_PATH)
-        embeddings = load_embeddings(EMBEDDING_PATHS[config_label])
+    config = EMBEDDING_CONFIGS[config_label]
+
+    with st.spinner("Loading Step 3 assets..."):
+        metadata = load_metadata(METADATA_PATH)
+        embeddings = load_embeddings(config["path"])
+        encoder = load_encoder(config["model"])
 
     categories = sorted(metadata["category"].dropna().unique().tolist())
     difficulties = sorted(metadata["difficulty"].dropna().unique().tolist())
@@ -247,25 +436,24 @@ def main() -> None:
     if category_filter_enabled:
         with st.sidebar:
             selected_category = st.selectbox("Category", categories)
+
     selected_difficulties = difficulties
     if difficulty_filter_enabled:
         with st.sidebar:
-            selected_difficulties = st.multiselect(
-                "Difficulty",
-                difficulties,
-                default=difficulties,
-            )
+            selected_difficulties = st.multiselect("Difficulty", difficulties, default=difficulties)
 
     col_a, col_b, col_c = st.columns(3)
     col_a.metric("Prompts", f"{len(metadata):,}")
     col_b.metric("Vector size", f"{embeddings.shape[1]}")
-    col_c.metric("Metadata", metadata_source)
+    col_c.metric("Step 4", ranking_mode)
+
+    st.caption(config["note"])
 
     examples = [
-        "write a cold outreach email for a SaaS product",
-        "review a vendor contract for legal risks",
-        "help me structure customer support training materials",
-        "generate SQL customer segmentation with window functions",
+        "create a social media marketing campaign",
+        "write a response to a negative customer review",
+        "write a SQL query to analyze database data",
+        "help me write a professional email to a client",
     ]
 
     if "query" not in st.session_state:
@@ -286,49 +474,59 @@ def main() -> None:
         st.info("Enter a query to search the prompt corpus.")
         return
 
-    with st.spinner("Searching..."):
-        mask = np.ones(len(metadata), dtype=bool)
-        if selected_category:
-            mask &= metadata["category"].eq(selected_category).to_numpy()
-        if difficulty_filter_enabled:
-            mask &= metadata["difficulty"].isin(selected_difficulties).to_numpy()
-
+    with st.spinner("Running retrieval pipeline..."):
+        mask = apply_filters(metadata, selected_category, selected_difficulties if difficulty_filter_enabled else [])
         if not mask.any():
             st.warning("No prompts match the selected filters.")
             return
 
-        retrieval_count = min(max(top_k * 5, top_k), int(mask.sum()))
-
+        candidate_k = min(candidate_k, int(mask.sum()))
         if mask.all():
-            candidate_indices, semantic_scores = search(query, embeddings, retrieval_count)
-            result_indices, semantic_scores, final_scores = rerank_with_popularity(
-                metadata,
-                candidate_indices,
-                semantic_scores,
-                top_k,
-                popularity_weight,
+            candidate_indices, vector_scores = vector_search(
+                query,
+                embeddings,
+                encoder,
+                config["query_prefix"],
+                candidate_k,
             )
+            candidates = rows_to_candidates(metadata, candidate_indices, vector_scores)
         else:
             filtered_indices = np.flatnonzero(mask)
             filtered_embeddings = embeddings[filtered_indices]
-            local_indices, semantic_scores = search(query, filtered_embeddings, retrieval_count)
+            local_indices, vector_scores = vector_search(
+                query,
+                filtered_embeddings,
+                encoder,
+                config["query_prefix"],
+                candidate_k,
+            )
             candidate_indices = filtered_indices[local_indices]
-            result_indices, semantic_scores, final_scores = rerank_with_popularity(
-                metadata,
-                candidate_indices,
-                semantic_scores,
-                top_k,
-                popularity_weight,
+            candidates = rows_to_candidates(metadata, candidate_indices, vector_scores)
+
+        if ranking_mode == "Vector search only":
+            results = candidates[:top_k]
+        elif ranking_mode == "Cross-encoder reranker":
+            results = rerank_candidates(query, candidates, top_k=top_k)
+        else:
+            results = metadata_aware_rerank(
+                query,
+                candidates,
+                encoder,
+                top_k=top_k,
+                alpha=alpha,
+                beta=beta,
+                gamma=gamma,
+                metadata_keyword_weight=metadata_keyword_weight,
+                content_keyword_weight=content_keyword_weight,
+                query_prefix=config["query_prefix"],
+                passage_prefix=config["passage_prefix"],
             )
 
     st.subheader("Results")
-    st.caption(config_label)
+    st.caption(f"{config_label} - {ranking_mode}")
 
-    for rank, (idx, semantic_score, final_score) in enumerate(
-        zip(result_indices, semantic_scores, final_scores),
-        start=1,
-    ):
-        render_result(metadata.iloc[int(idx)], float(semantic_score), float(final_score), rank)
+    for rank, candidate in enumerate(results, start=1):
+        render_result(candidate, rank, ranking_mode)
 
 
 if __name__ == "__main__":
