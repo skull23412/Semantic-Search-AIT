@@ -1,0 +1,87 @@
+[
+    {
+        "candidate": {
+            "rank": 3,
+            "id": "pk_07901",
+            "similarity": 0.7356,
+            "distance": 0.2644,
+            "title": "Draft client email response",
+            "category": "productivity",
+            "subcategory": "email-management",
+            "tags": "['email-writing', 'client-communication', 'professional-tone', 'apology-email', 'customer-relations']",
+            "difficulty": "beginner",
+            "likes": 373,
+            "upvotes": 269,
+            "content": "Act as a professional email writer. Draft a response to the following client inquiry about a delayed project delivery. The tone should be apologetic but confident, acknowledge their frustration, explain the reason for delay (resource constraints), outline the revised timeline with specific dates, and offer a 15% discount on the next phase as compensation. Keep the email under 200 words and end with a clear call to action to schedule a call to discuss further. Output the email in plain text format ready to send."
+        },
+        "rerank_score": 5.629380226135254
+    },
+    {
+        "candidate": {
+            "rank": 19,
+            "id": "pk_16889",
+            "similarity": 0.7043,
+            "distance": 0.2957,
+            "title": "Draft ticket response for printer issue",
+            "category": "customer-support",
+            "subcategory": "ticket-responses",
+            "tags": "['email', 'damaged-package', 'replacement', 'professional-tone', 'empathy']",
+            "difficulty": "beginner",
+            "likes": 12,
+            "upvotes": 5,
+            "content": "Write a professional email response for a customer whose order arrived damaged. Acknowledge their frustration, apologize for the inconvenience, and explain the replacement process. Keep the tone empathetic but efficient."
+        },
+        "rerank_score": 5.057276725769043
+    },
+    {
+        "candidate": {
+            "rank": 12,
+            "id": "pk_00072",
+            "similarity": 0.7133,
+            "distance": 0.2867,
+            "title": "Draft Professional Ticket Response",
+            "category": "ticket-responses",
+            "subcategory": "order-issues",
+            "tags": "['email', 'damage', 'replacement', 'professional']",
+            "difficulty": "beginner",
+            "likes": 66,
+            "upvotes": 19,
+            "content": "Write a professional email response to a customer whose order arrived damaged. Acknowledge their frustration, apologize sincerely, and outline the steps to send a replacement immediately."
+        },
+        "rerank_score": 4.927956581115723
+    },
+    {
+        "candidate": {
+            "rank": 26,
+            "id": "pk_18800",
+            "similarity": 0.7002,
+            "distance": 0.2998,
+            "title": "Draft Support Ticket Response",
+            "category": "ticket-responses",
+            "subcategory": "order-management",
+            "tags": "['email', 'compensation', 'professional', 'apologetic', 'solution-oriented']",
+            "difficulty": "intermediate",
+            "likes": 202,
+            "upvotes": 144,
+            "content": "Write a professional email response to a customer whose order was delayed. Acknowledge their frustration, apologize sincerely, provide a revised delivery estimate with a specific date, and include a 20% discount code for their next purchase as compensation."
+        },
+        "rerank_score": 4.892569541931152
+    },
+    {
+        "candidate": {
+            "rank": 6,
+            "id": "pk_01223",
+            "similarity": 0.7258,
+            "distance": 0.2742,
+            "title": "Email Template for {{purpose}}",
+            "category": "communication",
+            "subcategory": "email-templates",
+            "tags": "['email-writing', 'template', 'professional', 'business-communication']",
+            "difficulty": "beginner",
+            "likes": 225,
+            "upvotes": 225,
+            "content": "Write a professional email template for {{purpose}} communication. The tone should be {{tone}}, and it should be suitable for {{audience}}. Include subject line suggestions, opening greeting variations, body structure, and closing options. Make it adaptable by highlighting areas that need customization."
+        },
+        "rerank_score": 4.721451759338379
+    }
+]

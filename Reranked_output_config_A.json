@@ -1,0 +1,87 @@
+[
+    {
+        "candidate": {
+            "rank": 4,
+            "id": "pk_07901",
+            "similarity": 0.5191,
+            "distance": 0.4809,
+            "title": "Draft client email response",
+            "category": "productivity",
+            "subcategory": "email-management",
+            "tags": "['email-writing', 'client-communication', 'professional-tone', 'apology-email', 'customer-relations']",
+            "difficulty": "beginner",
+            "likes": 373,
+            "upvotes": 269,
+            "content": "Act as a professional email writer. Draft a response to the following client inquiry about a delayed project delivery. The tone should be apologetic but confident, acknowledge their frustration, explain the reason for delay (resource constraints), outline the revised timeline with specific dates, and offer a 15% discount on the next phase as compensation. Keep the email under 200 words and end with a clear call to action to schedule a call to discuss further. Output the email in plain text format ready to send."
+        },
+        "rerank_score": 5.6293792724609375
+    },
+    {
+        "candidate": {
+            "rank": 27,
+            "id": "pk_01223",
+            "similarity": 0.4673,
+            "distance": 0.5327,
+            "title": "Email Template for {{purpose}}",
+            "category": "communication",
+            "subcategory": "email-templates",
+            "tags": "['email-writing', 'template', 'professional', 'business-communication']",
+            "difficulty": "beginner",
+            "likes": 225,
+            "upvotes": 225,
+            "content": "Write a professional email template for {{purpose}} communication. The tone should be {{tone}}, and it should be suitable for {{audience}}. Include subject line suggestions, opening greeting variations, body structure, and closing options. Make it adaptable by highlighting areas that need customization."
+        },
+        "rerank_score": 4.721451759338379
+    },
+    {
+        "candidate": {
+            "rank": 33,
+            "id": "pk_00096",
+            "similarity": 0.4611,
+            "distance": 0.5389,
+            "title": "Cold outreach email template",
+            "category": "communication",
+            "subcategory": "cold-outreach",
+            "tags": "['email-templates', 'b2b-sales', 'prospecting', 'initial-contact']",
+            "difficulty": "intermediate",
+            "likes": 12,
+            "upvotes": 12,
+            "content": "Write a cold outreach email for a potential client at {{company_name}} to introduce our {{product_name}}. The tone should be {{tone}} — professional yet approachable, highlighting value without being pushy. Include a clear call-to-action and keep it under 150 words."
+        },
+        "rerank_score": 4.667156219482422
+    },
+    {
+        "candidate": {
+            "rank": 23,
+            "id": "pk_08029",
+            "similarity": 0.4698,
+            "distance": 0.5302,
+            "title": "Draft Professional Email Response",
+            "category": "productivity",
+            "subcategory": "email-management",
+            "tags": "['email', 'customer-service', 'communication', 'professional', 'templates']",
+            "difficulty": "intermediate",
+            "likes": 62,
+            "upvotes": 62,
+            "content": "Write a professional email response in {{tone}} tone for {{company_name}} addressing a customer complaint about a delayed shipment. Acknowledge the issue, apologize sincerely, provide a revised delivery timeline, and offer a 15% discount on their next order as compensation."
+        },
+        "rerank_score": 3.9435737133026123
+    },
+    {
+        "candidate": {
+            "rank": 2,
+            "id": "pk_14385",
+            "similarity": 0.5249,
+            "distance": 0.4751,
+            "title": "Sorry to take up your time",
+            "category": "marketing",
+            "subcategory": "email-campaigns",
+            "tags": "['b2b-email', 'plumbing', 'business-outreach']",
+            "difficulty": "intermediate",
+            "likes": 315,
+            "upvotes": 258,
+            "content": "Good morning! I am Eugene and I own a plumbing company. I need to write some emails to potential business clients like offices and restaurants. I want to seem professional but also friendly you know? Not too stiff. Could you help me with some email templates? I would need something for first contact and maybe a follow up email too. If its not too much trouble. Thank you so much, Eugene"
+        },
+        "rerank_score": 3.8441224098205566
+    }
+]

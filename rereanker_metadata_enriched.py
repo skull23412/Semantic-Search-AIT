@@ -1,22 +1,14 @@
-﻿# Generated from app_clean_newversion2.ipynb
-# Metadata-Aware Reranking: Weighted Linear Combination to end
-# Cells 78 through 83
+﻿#reranker_metadata_enriched.py
+#an improved version of the original reranker which incorporates metadata into the reranking process. It builds a function that combines relevance scores 
+# from a cross-encoder model with metadata-based features such as popularity (likes and upvotes) and keyword matching using TF-IDF. The final reranking is based on a weighted combination of these factors, 
+# allowing for a more comprehensive evaluation of candidate relevance. 
+#Role: to refine the original retrieval done by vector search and by the original reranker
+#input: candidates_for_reranker.json, retireval_metadata_enriched.csv
+#output: reranked_metadata_enriched_config_A.json , reranked_metadata_enriched_config_B.json
 
-# %% [markdown]
-# FINAL STEP: METADATAS
-
-# %% [markdown]
-# ## Metadata-Aware Reranking: Weighted Linear Combination
-#
-# To incorporate metadata into the ranking process, we apply a weighted linear combination of semantic relevance and engagement signals. The semantic relevance score comes from the cross-encoder reranker, while likes and upvotes are used as metadata-based popularity signals.
-#
-# Because these values live on different scales, each score is normalized before combination. The reranker score remains the dominant component, while metadata provides a smaller adjustment to promote prompts that are both relevant and positively received by users.
-#
-
-# %%
 import json
 from pathlib import Path
-from reranker_step4 import rerank_candidates
+from reranker import rerank_candidates
 def load_step3_candidates(path):
     path = Path(path)
     if not path.is_file():
@@ -38,6 +30,7 @@ def load_step3_candidates(path):
     return query, candidates
 
 path="/content/candidates_for_reranker.json"
+metadata=pd.read_csv("/content/retrieval_metadata_enriched.csv")
 QUERY, candidates = load_step3_candidates(path)
 reranked= rerank_candidates(QUERY, candidates["config_b_candidates"], top_k=50)
 print(reranked[0])
@@ -149,3 +142,9 @@ for i, item in enumerate(final_reranked_b, start=1):
     print(f"number of upvotes: {c['upvotes']}")
     print(f"Dataset tags: {c['tags']}")
 
+
+with open("reranked_metadata_enriched_config_A.json", "w", encoding="utf-8") as f:
+    json.dump(final_reranked_a, f, ensure_ascii=False, indent=4)
+
+with open("reranked_metadata_enriched_config_B.json", "w", encoding="utf-8") as f:
+    json.dump(final_reranked_b, f, ensure_ascii=False, indent=4)

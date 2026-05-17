@@ -1,14 +1,10 @@
-﻿# Generated from app_clean_newversion2.ipynb
-# Standalone Step 4 runner.
-# This file starts from the JSON exported at the end of Step 3.
-# Expected JSON structure:
-# {
-#   "query": "...",
-#   "top_k": 50,
-#   "config_a_candidates": [...],
-#   "config_b_candidates": [...]
-# }
-
+﻿#reranker.py
+#builds a function which reranks the candidates retrieved from the vector search using a stronger model, and then tests it on the candidates from both Config A and Config B,
+#printing the top 5 reranked results for each configuration. The function takes the original query and the list of candidates,
+#computes relevance scores using a cross-encoder model, and returns the top k reranked candidates based on those scores.
+#Role: to refine the original retrieval done by vector search
+#input: candidates_for_reranker_json
+#output: Reranked_output_config_A.json , Reranked_output_config_B.json
 import json
 from pathlib import Path
 
@@ -36,16 +32,7 @@ path="/content/candidates_for_reranker.json"
 QUERY, candidates = load_step3_candidates(path)
 
 
-# Reranker Step 4 up to Metadata-Aware Reranking
-# Cells 62 through 77
 
-# %% [markdown]
-# ## RERANKER (PART 4)
-
-# %% [markdown]
-# Before building the reranker, let's do a sanity check
-
-# %%
 if "config_a_bge" in globals() and "config_b_e5" in globals() and "metadata" in globals():
     print(config_a_bge.shape)
     print(config_b_e5.shape)
@@ -53,42 +40,34 @@ if "config_a_bge" in globals() and "config_b_e5" in globals() and "metadata" in 
 else:
     print("Standalone mode: using candidates loaded from Step 3 JSON.")
 
-# %%
+
 if "config_a_chromadb" in globals() and "config_b_chromadb" in globals():
     print("Chroma A:", config_a_chromadb.count())
     print("Chroma B:", config_b_chromadb.count())
 else:
     print("Standalone mode: ChromaDB collections are not needed for Step 4.")
 
-# %%
+
 candidates.keys()
 
-# %%
-#print example candidate
+
 print("\nExample candidate from Config A:")
 print(candidates["config_a_candidates"][min(49, len(candidates["config_a_candidates"]) - 1)])
 print("\nExample candidate from Config B:")
 print(candidates["config_b_candidates"][min(49, len(candidates["config_b_candidates"]) - 1)])
 
-# %% [markdown]
+
 # After performing vector retrieval we need to fine our search by performing a reranking over the best results that we got so that they can be ordered over certain criterias
 
-# %%
+
 #as a model we will choose cross-encoder/ms-marco-MiniLM-L-6-v2, which is fine-tuned for relevance ranking tasks and should perform well in distinguishing subtle differences in prompt relevance.
 from sentence_transformers import SentenceTransformer, util, CrossEncoder
 RERANKER_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 reranker_model = CrossEncoder(RERANKER_MODEL_NAME)
 print(f"Reranker model loaded: {RERANKER_MODEL_NAME}")
 
-# %% [markdown]
-# In order to improve the reranker and make sure that it might perform also when the prompt is vague or unclear we want to incorporate in a structured textual representation also other attributes, like title, category and tags, so that it would improve our retrieval. This ensures also a coherence with "Config B" where said attributes where already taken into account for embedding.
-#
 
-# %% [markdown]
-# Now time for the reranker function, that takes the "rough" candidates resulting from the vector search and reorders them using a stronger model, returning only the top k results.
-#
 
-# %%
 def rerank_candidates(query, candidates, top_k=10):
     query = query.strip() #remove leading/trailing whitespace
     candidate_texts = [candidate.get("content") for candidate in candidates] #retrieve the text representation for each candidate
@@ -98,10 +77,8 @@ def rerank_candidates(query, candidates, top_k=10):
     return sorted(reranked, key=lambda x: x["rerank_score"], reverse=True)[:top_k] #sort candidates by rerank_score and return top_k
 
 
-# %% [markdown]
-# Testing on candidates from Config A:
 
-# %%
+
 reranked_a = rerank_candidates(QUERY, candidates["config_a_candidates"], top_k=5)
 
 print("\nTop 5 reranked candidates from Config A:")
@@ -112,11 +89,8 @@ for i, item in enumerate(reranked_a, start=1):
     print(f" Title: {c['title']}")
     print(f"content:{c['content']}")
 
-# %% [markdown]
-# Now on Candidates from B
 
-# %%
-# And now on the candidates from Config B
+
 reranked_b = rerank_candidates(QUERY, candidates["config_b_candidates"], top_k=5)
 
 
@@ -129,6 +103,9 @@ for i, item in enumerate(reranked_b, start=1):
     print(f"content:{c['content']}")
 
 
-# %% [markdown]
-# Now we want to analyze the reranker performance compared to the vector search for the top 10 among the 50 best ones found by vector search itself. As evaluation metrics we use NDCG, RR and P@10.
 
+with open("Reranked_output_config_A.json", "w", encoding="utf-8") as f:
+    json.dump(reranked_a, f, ensure_ascii=False, indent=4)
+
+with open("Reranked_output_config_B.json", "w", encoding="utf-8") as f:
+    json.dump(reranked_b, f, ensure_ascii=False, indent=4)
