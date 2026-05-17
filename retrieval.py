@@ -3,31 +3,22 @@
 # runs cosine similarity search over ChromaDB to return top-k candidates.
 # Role: performs vector search given user input ranks semantically close prompts to be fed in the reranker.
 # Input:  retrieval_metadata_enriched.csv (from preprocessing.py),
-#         embeddings_bge_enriched.npy and embeddings_e5_enriched.npy (from preprocessing.py, used for sanity checks),
-#         ChromaDB collections config_a_bge and config_b_e5 (from db_storing.py),
-#         seeded random sample from metadata used as the query
-# Output: candidates_for_reranker.json containing query, top_k, source_id,
+#         ChromaDB collections config_a_bge and config_b_e5 (from db_storing.py), example query of a user.
+# Output: candidates_for_reranker.json containing query, top_k,
 #         and ranked candidate lists with metadata for Config A and Config B,
 #         that will be fed in reranking.py
 
-# Each query is encoded with the same model that built its target collection.
 import chromadb
-import numpy as np
 import pandas as pd
 import time
 import random
 import json
 from sentence_transformers import SentenceTransformer
 
-# Load metadata and embedding arrays so this file can run independently of preprocessing.py / embedding.py.
-# These are produced by preprocessing.py and consumed by embedding.py; we reload them here for the sanity checks at the end.
+# Load data so this python file can run independently
 metadata = pd.read_csv("retrieval_metadata_enriched.csv")
-config_a_bge = np.load("embeddings_bge_enriched.npy")
-config_b_e5 = np.load("embeddings_e5_enriched.npy")
-
 bge_model = SentenceTransformer("BAAI/bge-base-en-v1.5")
 e5_model = SentenceTransformer("intfloat/e5-base-v2")
-
 
 chromaDB = chromadb.PersistentClient(path="/content")
 config_a_chromadb = chromaDB.get_collection(name="config_a_bge")
@@ -184,14 +175,9 @@ print("Saved to: /content/candidates_for_reranker.json")
 
 
 # Sanity checks so that the vector counts and metadata row counts match before reranking
-print(config_a_bge.shape)
-print(config_b_e5.shape)
 print(metadata.shape)
-
 print("Chroma A:", config_a_chromadb.count())
 print("Chroma B:", config_b_chromadb.count())
-
-candidates.keys()
 
 print("\nExample candidate from Config A:")
 print(candidates["config_a_candidates"][49])
