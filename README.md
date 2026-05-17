@@ -119,6 +119,7 @@ python embedding.py
 python retrieval.py
 python reranker.py
 python reranker_metadata_enriched.py
+```
 
 After that to run the web app locally, use:
 
