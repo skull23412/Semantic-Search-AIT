@@ -27,7 +27,7 @@ The `src` folder contains the following files:
 
 -`reranker_metadata_enriched.py`:to refine the original retrieval done by vector search and by the original reranker
 
--`streamlit_demo.py`:
+-`streamlit_demo.py`:optional demo interface for interactively testing
 
 
 ## Environment
