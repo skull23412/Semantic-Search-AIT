@@ -17,6 +17,18 @@ The `src` folder contains the following files:
 
 -`eda_leaf.py`: performs exploratory data analysis on the LEAF prompt dataset
 
+-`preprocessing.py`: produces the text that will be fed to the embedding models
+
+-`embedding.py`: turns text into a searchable vector index for the retrieval stage
+
+-
+
+-
+
+-
+
+-
+
 ## Environment
 
 The project was run using:Python 3.12.13
@@ -58,3 +70,9 @@ Therefore, it is important to execute files in the specified order to correctly 
 Run the scripts in the following order:
 
 1.`eda_leaf.py`
+
+2.`preprocessing.py`
+
+3.`embedding.py`
+
+4.
