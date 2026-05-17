@@ -1,4 +1,4 @@
-**##Source Code Guide**
+# **Source Code Guide**
 
 This folder contains the source code used for the project **Titolo**.
 
