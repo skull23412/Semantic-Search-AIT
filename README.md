@@ -12,7 +12,9 @@ This README explains how the code is organized, which input file is required, an
 The `src` folder contains the following files:
 
 -`README.md`: explains how to run the code and reproduce the project pipeline
+
 -`requirements.txt`: lists the external Python libraries required to run the code
+
 -`eda_leaf.py`: performs exploratory data analysis on the LEAF prompt dataset
 
 ## Environment
@@ -24,3 +26,10 @@ To install the external libraries used in the project, run:
 ```bash
 pip install -r requirements.txt
 ```
+The project also uses the following Python Standard Library modules:
+
+-json
+
+-re
+
+-collections
