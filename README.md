@@ -76,7 +76,7 @@ Therefore, it is important to execute files in the specified order to correctly 
 | 1 | `eda_leaf.py` | `dataset.json` | Descriptive statistics and EDA results |
 | 2 | `preprocessing.py` | `dataset.json` | `embeddings_bge_enriched.npy`<br>`embeddings_e5_enriched.npy`<br>`retrieval_metadata_enriched.csv` |
 | 3 | `embedding.py` | `embeddings_bge_enriched.npy`<br>`embeddings_e5_enriched.npy`<br>`retrieval_metadata_enriched.csv` | `config_a_bge_collection`<br>`config_b_e5_collection` |
-| 4 | `retrieval.py` | `retrieval_metadata_enriched.csv`<br>`embeddings_bge_enriched.npy`<br>`embeddings_e5_enriched.npy`<br>`config_a_bge_collection`<br>`config_b_e5_collection` | `candidates_for_reranker.json` |
+| 4 | `retrieval.py` | `retrieval_metadata_enriched.csv`<br>`config_a_bge_collection`<br>`config_b_e5_collection` | `candidates_for_reranker.json` |
 | 5 | `reranker.py` | `candidates_for_reranker.json`<br>`retrieval_metadata_enriched.csv` | `reranked_output_config_A.json`<br>`reranked_output_config_B.json` |
 | 6 | `reranker_metadata_enriched.py` | `candidates_for_reranker.json`<br>`retrieval_metadata_enriched.csv`<br>`rerank_candidates` function imported from `reranker.py` | `reranked_metadata_enriched_config_A.json`<br>`reranked_metadata_enriched_config_B.json` |
 
