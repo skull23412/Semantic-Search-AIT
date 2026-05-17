@@ -9,6 +9,7 @@
 import json
 from pathlib import Path
 from reranker import rerank_candidates
+import pandas as pd
 def load_step3_candidates(path):
     path = Path(path)
     if not path.is_file():
@@ -35,7 +36,7 @@ QUERY, candidates = load_step3_candidates(path)
 reranked= rerank_candidates(QUERY, candidates["config_b_candidates"], top_k=50)
 print(reranked[0])
 
-# %%
+
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -108,7 +109,7 @@ def metadata_aware_reranker(query, candidates,top_k=10, alpha=0.75, beta=0.10, g
 
     return sorted(weighted_reranker_results, key=lambda x: x["final_score"], reverse=True)[:top_k]
 
-# %%
+
 print("\nTop 5 candidates from Config A with metadata-aware reranking:")
 
 final_reranked_a = metadata_aware_reranker( QUERY, candidates["config_a_candidates"], top_k=5, alpha=0.75, beta=0.10, gamma=0.15)
