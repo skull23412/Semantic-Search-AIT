@@ -2,8 +2,13 @@
 # This file embeds a user query with the same model that built each collection and
 # runs cosine similarity search over ChromaDB to return top-k candidates.
 # Role: performs vector search given user input ranks semantically close prompts to be fed in the reranker.
-# Input:  natural language query string, ChromaDB collections from embedding.py
-# Output: ranked candidate list with metadata that will be fed in reranking.py
+# Input:  retrieval_metadata_enriched.csv (from preprocessing.py),
+#         embeddings_bge_enriched.npy and embeddings_e5_enriched.npy (from preprocessing.py, used for sanity checks),
+#         ChromaDB collections config_a_bge and config_b_e5 (from db_storing.py),
+#         seeded random sample from metadata used as the query
+# Output: candidates_for_reranker.json containing query, top_k, source_id,
+#         and ranked candidate lists with metadata for Config A and Config B,
+#         that will be fed in reranking.py
 
 # Each query is encoded with the same model that built its target collection.
 import chromadb
