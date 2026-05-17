@@ -1,6 +1,6 @@
 # **Source Code Guide**
 
-This folder contains the source code used for the project **Titolo**.
+This folder contains the source code used for the project **Superpromter**.
 
 The goal of the project is to build a semantic search pipeline for the LEAF prompt dataset, from which is possibile to retrive promts according to their semantic similarity and thier quality with a user query.
 The code starts from the raw `dataset.json` file, provided by the company and follows the main stages of the pipeline: exploratory data analysis, preprocessing, embedding generation, vector database creation, retrieval, evaluation, and reranking.
@@ -32,7 +32,7 @@ The `src` folder contains the following files:
 
 ## Environment
 
-The project was run using:Python 3.12.13
+The project was run using:Python 3.12.13.
 
 To install the external libraries used in the project, run:
 
@@ -71,22 +71,6 @@ The project starts using the raw dataset stored in `dataset.json`.
 During the execution of the pipeline, some scripts generate intermediate files that are used as input by later scripts.
 Therefore, it is important to execute files in the specified order to correctly reproduce the right workflow.
 
-### Execution Order
-
-Run the scripts in the following order:
-
-1.`eda_leaf.py`
-
-2.`preprocessing.py`
-
-3.`embedding.py`
-
-4.`retrieval.py`
-
-5.`reranker.py`
-
-6.`reranker_metadata_enriched.py`
-
 | Step | Script | Main input | Main output |
 |---|---|---|---|
 | 1 | `eda_leaf.py` | `dataset.json` | Descriptive statistics and EDA results |
@@ -110,9 +94,9 @@ Run the scripts in the following order:
 
 -`candidates_for_reranker.json`: ranked retrieval candidates with metadata for Config A and Config B, used as input for reranking.
 
--`Reranked_output_config_A.json`: The top 5 prompts for a given query after the reranking process using conf A
+-`reranked_output_config_A.json`: The top 5 prompts for a given query after the reranking process using conf A
 
--`Reranked_output_config_B.json`: The top 5 prompts for a given query after the reranking process using conf B
+-`reranked_output_config_B.json`: The top 5 prompts for a given query after the reranking process using conf B
 
 -`reranked_metadata_enriched_config_A.json`: The top 5 prompts for a given query after the reranking process using conf A considering also metadata
 
@@ -121,3 +105,15 @@ Run the scripts in the following order:
 Each script should be executed only after the previous one has successfully completed, because some scripts use intermediate files generated in earlier stages.
 Additionally it must be considered that some intermediate files listed above are generated automatically during the execution of the pipeline and therefore are not included in the `src` zip folder.
 For this reason before executing each of the file update the file paths in the scripts if necessary, so that they match the local location of the dataset and the output folders on your machine.
+
+## How to Run
+
+After installing the required dependencies and checking the dataset path, run the scripts in this order:
+
+```bash
+python eda_leaf.py
+python preprocessing.py
+python embedding.py
+python retrieval.py
+python reranker.py
+python reranker_metadata_enriched.py
