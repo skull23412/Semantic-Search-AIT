@@ -3,7 +3,7 @@
 This folder contains the source code used for the project **Superpromter**.
 
 The goal of the project is to build a semantic search pipeline for the LEAF prompt dataset, from which is possibile to retrive promts according to their semantic similarity and thier quality with a user query.
-The code starts from the raw `dataset.json` file, provided by the company and follows the main stages of the pipeline: exploratory data analysis, preprocessing, embedding generation, vector database creation, retrieval, evaluation, and reranking.
+The code starts from the raw `dataset.json` file, provided by the company and follows the main stages of the pipeline: exploratory data analysis, preprocessing, embedding generation, vector database creation, retrieval and reranking.
 
 This README explains how the code is organized, which input file is required, and in which order the scripts should be executed to reproduce the results.
 
@@ -78,7 +78,7 @@ Therefore, it is important to execute files in the specified order to correctly 
 | 3 | `embedding.py` | `embeddings_bge_enriched.npy`<br>`embeddings_e5_enriched.npy`<br>`retrieval_metadata_enriched.csv` | `config_a_bge_collection`<br>`config_b_e5_collection` |
 | 4 | `retrieval.py` | `retrieval_metadata_enriched.csv`<br>`embeddings_bge_enriched.npy`<br>`embeddings_e5_enriched.npy`<br>`config_a_bge_collection`<br>`config_b_e5_collection` | `candidates_for_reranker.json` |
 | 5 | `reranker.py` | `candidates_for_reranker.json`<br>`retrieval_metadata_enriched.csv` | `reranked_output_config_A.json`<br>`reranked_output_config_B.json` |
-| 6 | `reranker_metadata_enriched.py` | `candidates_for_reranker.json`<br>`retrieval_metadata_enriched.csv` | `reranked_metadata_enriched_config_A.json`<br>`reranked_metadata_enriched_config_B.json` |
+| 6 | `reranker_metadata_enriched.py` | `candidates_for_reranker.json`<br>`retrieval_metadata_enriched.csv`<br>`rerank_candidates` function imported from `reranker.py` | `reranked_metadata_enriched_config_A.json`<br>`reranked_metadata_enriched_config_B.json` |
 
 **Description of intermediate files:**
 
@@ -101,6 +101,8 @@ Therefore, it is important to execute files in the specified order to correctly 
 -`reranked_metadata_enriched_config_A.json`: The top 5 prompts for a given query after the reranking process using conf A considering also metadata
 
 -`reranked_metadata_enriched_config_B.json`:The top 5 prompts for a given query after the reranking process using conf B considering also metadata
+
+**Note**: Inside `reranker_metadata_enriched.py` is imported the `rerank_candidates` function from `reranker.py`, so `reranker.py` must be available in the same source folder when running the metadata-enriched reranking script.
 
 Each script should be executed only after the previous one has successfully completed, because some scripts use intermediate files generated in earlier stages.
 Additionally it must be considered that some intermediate files listed above are generated automatically during the execution of the pipeline and therefore are not included in the `src` zip folder.
