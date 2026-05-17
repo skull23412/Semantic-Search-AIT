@@ -110,13 +110,13 @@ Run the scripts in the following order:
 
 -`candidates_for_reranker.json`: ranked retrieval candidates with metadata for Config A and Config B, used as input for reranking.
 
--`Reranked_output_config_A.json`
+-`Reranked_output_config_A.json`: The top 5 prompts for a given query after the reranking process using conf A
 
--`Reranked_output_config_B.json`
+-`Reranked_output_config_B.json`: The top 5 prompts for a given query after the reranking process using conf B
 
--`reranked_metadata_enriched_config_A.json`
+-`reranked_metadata_enriched_config_A.json`: The top 5 prompts for a given query after the reranking process using conf A considering also metadata
 
--`reranked_metadata_enriched_config_B.json`
+-`reranked_metadata_enriched_config_B.json`:The top 5 prompts for a given query after the reranking process using conf B considering also metadata
 
 Each script should be executed only after the previous one has successfully completed, because some scripts use intermediate files generated in earlier stages.
 Additionally it must be considered that some intermediate files listed above are generated automatically during the execution of the pipeline and therefore are not included in the `src` zip folder.
