@@ -23,19 +23,12 @@ The `src` folder contains the following files:
 
 -`retrieval.py`:performs vector search given user input ranks semantically close prompts to be fed in the reranker
 
--`reranker.py`:
+-`reranker.py`:to refine the original retrieval done by vector search
 
--`reranker_metadata_enriched.py`:
+-`reranker_metadata_enriched.py`:to refine the original retrieval done by vector search and by the original reranker
 
-??
+-`streamlit_demo.py`:
 
--`embeddings_bge_enriched.npy`: numerical embedding of the dataset performed using BGE
-
--`embeddings_e5_enriched.npy`: numerical embedding of the dataset performed using E5
-
--`retrivial_metadata_enriched.csv`:Stores semantic and numerical metadata used for ChromaDB insertion and reranking.
-
-??
 
 ## Environment
 
@@ -103,4 +96,28 @@ Run the scripts in the following order:
 | 5 | `reranker.py` | `candidates_for_reranker.json`<br>`retrieval_metadata_enriched.csv` | `reranked_output_config_A.json`<br>`reranked_output_config_B.json` |
 | 6 | `reranker_metadata_enriched.py` | `candidates_for_reranker.json`<br>`retrieval_metadata_enriched.csv` | `reranked_metadata_enriched_config_A.json`<br>`reranked_metadata_enriched_config_B.json` |
 
+**Description of intermediate files:**
+
+-`embeddings_bge_enriched.npy`: BGE numerical embeddings 
+
+-`embeddings_e5_enriched.npy`: E5 numerical embeddings  
+
+-`retrieval_metadata_enriched.csv`: metadata linked to each prompt and used for ChromaDB and reranking  
+
+-`config_a_bge_collection`: local ChromaDB collection with BGE vectors and metadata  
+
+-`config_b_e5_collection`: local ChromaDB collection with E5 vectors and metadata
+
+-`candidates_for_reranker.json`: ranked retrieval candidates with metadata for Config A and Config B, used as input for reranking.
+
+-`Reranked_output_config_A.json`
+
+-`Reranked_output_config_B.json`
+
+-`reranked_metadata_enriched_config_A.json`
+
+-`reranked_metadata_enriched_config_B.json`
+
 Each script should be executed only after the previous one has successfully completed, because some scripts use intermediate files generated in earlier stages.
+Additionally it must be considered that some intermediate files listed above are generated automatically during the execution of the pipeline and therefore are not included in the `src` zip folder.
+For this reason before executing each of the file update the file paths in the scripts if necessary, so that they match the local location of the dataset and the output folders on your machine.
